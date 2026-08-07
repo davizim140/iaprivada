@@ -2,7 +2,6 @@ import streamlit as st
 import g4f 
 import asyncio 
 import urllib.parse 
-import time
 
 st.set_page_config(page_title="Assistente Grok-like", page_icon="🤖", layout="centered") 
 
@@ -16,7 +15,7 @@ uploaded_file = st.file_uploader(
 )
 
 if "messages" not in st.session_state: 
-    # Instrução de sistema configurada com a personalidade do Grok (rápido, sarcástico e sem frescura)
+    # Instrução de sistema configurada com a personalidade do Grok
     st.session_state.messages = [ 
         {
             "role": "system", 
@@ -46,7 +45,6 @@ def gerar_resposta_ia(formatted_messages):
             loop = asyncio.new_event_loop() 
         asyncio.set_event_loop(loop) 
         
-        # Tenta obter a resposta de forma síncrona/rápida pelo g4f
         resposta = g4f.ChatCompletion.create( 
             model=g4f.models.default, 
             messages=formatted_messages, 
@@ -82,14 +80,7 @@ if prompt := st.chat_input("Mande sua braba..."):
             formatted_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if "content" in m] 
             resposta = gerar_resposta_ia(formatted_messages) 
             
-            # Efeito de digitação rápida estilo IA moderna (Stream simulado)
-            texto_exibido = ""
-            for palavra in resposta.split(" "):
-                texto_exibido += palavra + " "
-                message_placeholder.markdown(texto_exibido + "▌")
-                time.sleep(0.01) # Velocidade de digitação fluida
-            
-            # Remove o cursor e mostra o texto final limpo
+            # Exibe a resposta de uma vez, corrigindo o erro de renderização de espaçamento
             message_placeholder.markdown(resposta) 
             
         msg_dict = {"role": "assistant", "content": resposta} 
