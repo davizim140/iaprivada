@@ -2,26 +2,69 @@ import streamlit as st
 import g4f 
 import asyncio 
 import urllib.parse 
+import uuid
 
 st.set_page_config(page_title="Assistente Grok-like", page_icon="🤖", layout="centered") 
 
+# Gerencia ou recupera um ID único de dispositivo via session_state (vinculado à aba/sessão do navegador)
+if "device_id" not in st.session_state:
+    st.session_state.device_id = str(uuid.uuid4())
+
+# Estrutura de múltiplos históricos por dispositivo salvos na sessão
+if "historico_chats" not in st.session_state:
+    st.session_state.historico_chats = {
+        "Chat Principal": [
+            {
+                "role": "system", 
+                "content": (
+                    "Você é um assistente com a personalidade do Grok. "
+                    "Você é espirituoso, irônico, sarcástico, vai direto ao ponto sem enrolação corporativa, "
+                    "adora cultura pop e memes, e responde rápido. "
+                    "Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno."
+                )
+            }
+        ]
+    }
+
+if "chat_ativo" not in st.session_state:
+    st.session_state.chat_ativo = "Chat Principal"
+
+# Barra lateral para gerenciar o histórico de conversas do dispositivo
+with st.sidebar:
+    st.title("📂 Histórico do Dispositivo")
+    st.caption(id_cur := f"ID: {st.session_state.device_id[:8]}...")
+    
+    if st.button("➕ Novo Chat", use_container_width=True):
+        novo_nome = f"Chat {len(st.session_state.historico_chats) + 1}"
+        st.session_state.historico_chats[novo_nome] = [st.session_state.historico_chats["Chat Principal"][0]]
+        st.session_state.chat_ativo = novo_nome
+        st.rerun()
+
+    st.markdown("---")
+    st.write("### Suas Conversas:")
+    
+    for nome_chat in list(st.session_state.historico_chats.keys()):
+        col1, col2 = st.columns([0.8, 0.2])
+        with col1:
+            if st.button(nome_chat, key=f"btn_{nome_chat}", use_container_width=True):
+                st.session_state.chat_ativo = nome_chat
+                st.rerun()
+        with col2:
+            if len(st.session_state.historico_chats) > 1:
+                if st.button("🗑️", key=f"del_{nome_chat}"):
+                    del st.session_state.historico_chats[nome_chat]
+                    if st.session_state.chat_ativo == nome_chat:
+                        st.session_state.chat_ativo = list(st.session_state.historico_chats.keys())[0]
+                    st.rerun()
+
 st.title("🤖 Assistente Estilo Grok") 
-st.write("Mande sua dúvida, cole ou anexe arquivos/fotos direto na barra abaixo, ou peça para gerar uma imagem.") 
+st.write(f"Conversando no chat: **{st.session_state.chat_ativo}**") 
 
-if "messages" not in st.session_state: 
-    st.session_state.messages = [ 
-        {
-            "role": "system", 
-            "content": (
-                "Você é um assistente com a personalidade do Grok. "
-                "Você é espirituoso, irônico, sarcástico, vai direto ao ponto sem enrolação corporativa, "
-                "adora cultura pop e memes, e responde rápido. "
-                "Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno."
-            )
-        } 
-    ] 
+# Pega as mensagens do chat selecionado atualmente
+mensagens_atuais = st.session_state.historico_chats[st.session_state.chat_ativo]
 
-for message in st.session_state.messages: 
+# Exibe o histórico de mensagens do chat ativo
+for message in mensagens_atuais: 
     if message["role"] == "system": 
         continue 
     with st.chat_message(message["role"]): 
@@ -58,8 +101,10 @@ if chat_input_dict:
     if files:
         file_name_display = files[0].name
 
-    # Adiciona a mensagem do usuário ao histórico
-    st.session_state.messages.append({"role": "user", "content": prompt, "file_info": file_name_display}) 
+    # Adiciona a mensagem do usuário no histórico do chat ativo
+    st.session_state.historico_chats[st.session_state.chat_ativo].append(
+        {"role": "user", "content": prompt, "file_info": file_name_display}
+    ) 
     
     with st.chat_message("user"): 
         if prompt:
@@ -85,13 +130,13 @@ if chat_input_dict:
             message_placeholder.markdown(resposta) 
             st.image(image_url) 
         else: 
-            formatted_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if "content" in m] 
+            formatted_messages = [{"role": m["role"], "content": m["content"]} for m in mensagens_atuais if "content" in m] 
             resposta = gerar_resposta_ia(formatted_messages) 
             message_placeholder.markdown(resposta) 
             
         msg_dict = {"role": "assistant", "content": resposta, "file_info": file_name_display} 
         if image_url: 
             msg_dict["image_url"] = image_url 
-        st.session_state.messages.append(msg_dict) 
-        
+            
+        st.session_state.historico_chats[st.session_state.chat_ativo].append(msg_dict) 
         st.rerun()
