@@ -3,8 +3,10 @@ import g4f
 import asyncio 
 import urllib.parse 
 import uuid
+import io
+import zipfile
 
-st.set_page_config(page_title="Assistente Grok-like Sem Chave", page_icon="🤖", layout="centered") 
+st.set_page_config(page_title="Assistente Grok-like com Arquivos ZIP", page_icon="🤖", layout="centered") 
 
 if "device_id" not in st.session_state:
     st.session_state.device_id = str(uuid.uuid4())
@@ -55,7 +57,7 @@ st.write(f"Conversando no chat: **{st.session_state.chat_ativo}**")
 
 mensagens_atuais = st.session_state.historico_chats[st.session_state.chat_ativo]
 
-for message in mensagens_atuais: 
+for idx, message in enumerate(mensagens_atuais): 
     if message["role"] == "system": 
         continue 
     with st.chat_message(message["role"]): 
@@ -64,6 +66,17 @@ for message in mensagens_atuais:
             st.image(message["image_url"]) 
         if "file_info" in message and message["file_info"]:
             st.info(f"Arquivo anexado: {message['file_info']}")
+        
+        # Exibe botão de download de arquivo individual ou ZIP salvo no histórico
+        if "gerar_arquivo" in message and message["gerar_arquivo"]:
+            arq = message["gerar_arquivo"]
+            st.download_button(
+                label=f"📥 Baixar arquivo: {arq['nome']}",
+                data=arq["conteudo"],
+                file_name=arq["nome"],
+                mime=arq.get("mime", "text/plain"),
+                key=f"dl_history_{idx}"
+            )
 
 def gerar_resposta_ia(formatted_messages): 
     try: 
@@ -81,7 +94,7 @@ def gerar_resposta_ia(formatted_messages):
     except Exception as e: 
         return f"Deu ruim ao conectar com a IA gratuita: {e}" 
 
-chat_input_dict = st.chat_input("Mande sua braba ou anexe um arquivo...", accept_file="multiple")
+chat_input_dict = st.chat_input("Mande sua braba, peça um arquivo ou um .zip...", accept_file="multiple")
 
 if chat_input_dict:
     prompt = chat_input_dict.text if hasattr(chat_input_dict, "text") else chat_input_dict.get("text", "")
@@ -109,6 +122,7 @@ if chat_input_dict:
         message_placeholder = st.empty() 
         message_placeholder.markdown("Processando...") 
         image_url = None 
+        dados_arquivo = None
         
         if is_image_request: 
             prompt_encoded = urllib.parse.quote(prompt) 
@@ -119,13 +133,60 @@ if chat_input_dict:
         else: 
             formatted_messages = [{"role": m["role"], "content": m["content"]} for m in mensagens_atuais if "content" in m] 
             resposta = gerar_resposta_ia(formatted_messages) 
-            
-            # Exibe o texto completo de uma vez, eliminando o bug de renderização de espaçamento
             message_placeholder.markdown(resposta) 
+            
+            if prompt and any(cmd in prompt.lower() for cmd in ["crie um arquivo", "salve", "faça um arquivo", "gere um arquivo", ".zip", "compactado"]):
+                # Verifica se o usuário pediu especificamente um arquivo .zip
+                if ".zip" in prompt.lower() or "compactado" in prompt.lower():
+                    zip_buffer = io.BytesIO()
+                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                        # Adiciona o texto gerado dentro de um arquivo padrão dentro do ZIP
+                        zip_file.writestr("conteudo_gerado.txt", resposta)
+                        # Se houver arquivo enviado pelo usuário, compacta ele junto no ZIP
+                        if files:
+                            for f in files:
+                                zip_file.writestr(f.name, f.getvalue())
+                    
+                    zip_buffer.seek(0)
+                    dados_arquivo = {
+                        "nome": "projeto_assistente.zip",
+                        "conteudo": zip_buffer.getvalue(),
+                        "mime": "application/zip"
+                    }
+                    st.download_button(
+                        label="📥 Baixar arquivo .ZIP compactado",
+                        data=zip_buffer.getvalue(),
+                        file_name="projeto_assistente.zip",
+                        mime="application/zip",
+                        key="dl_current_zip"
+                    )
+                else:
+                    # Arquivo de texto comum (.txt, .py, etc)
+                    nome_arquivo = "resposta_assistente.txt"
+                    if "." in prompt:
+                        for p in prompt.split():
+                            if "." in p and len(p) > 3:
+                                nome_arquivo = p.strip(".,'\"?!")
+                                break
+                    
+                    dados_arquivo = {
+                        "nome": nome_arquivo,
+                        "conteudo": resposta.encode("utf-8"),
+                        "mime": "text/plain"
+                    }
+                    st.download_button(
+                        label=f"📥 Baixar arquivo: {nome_arquivo}",
+                        data=resposta,
+                        file_name=nome_arquivo,
+                        mime="text/plain",
+                        key="dl_current_txt"
+                    )
             
         msg_dict = {"role": "assistant", "content": resposta, "file_info": file_name_display} 
         if image_url: 
             msg_dict["image_url"] = image_url 
+        if dados_arquivo:
+            msg_dict["gerar_arquivo"] = dados_arquivo
             
         st.session_state.historico_chats[st.session_state.chat_ativo].append(msg_dict) 
         st.rerun()
