@@ -1,10 +1,19 @@
 import streamlit as st 
-import g4f 
-import asyncio 
+from google import genai
 import urllib.parse 
 import uuid
 
 st.set_page_config(page_title="Assistente Grok-like Rápido", page_icon="🤖", layout="centered") 
+
+# Inicializa o cliente oficial do Google Gemini
+@st.cache_resource
+def carregar_cliente():
+    return genai.Client()
+
+try:
+    client = carregar_cliente()
+except Exception:
+    client = None
 
 if "device_id" not in st.session_state:
     st.session_state.device_id = str(uuid.uuid4())
@@ -13,11 +22,11 @@ if "historico_chats" not in st.session_state:
     st.session_state.historico_chats = {
         "Chat Principal": [
             {
-                "role": "system", 
+                "role": "user", 
                 "content": (
-                    "Você é um assistente com a personalidade do Grok. "
-                    "Seja irônico, sarcástico, direto ao ponto e sem enrolação. "
-                    "Responda sempre em português do Brasil e muito rápido."
+                    "Instrução de Sistema: Você é um assistente com a personalidade do Grok. "
+                    "Seja irônico, sarcástico, direto ao ponto e sem enrolação corporativa. "
+                    "Responda sempre em português do Brasil e de forma muito rápida."
                 )
             }
         ]
@@ -56,8 +65,9 @@ st.write(f"Conversando no chat: **{st.session_state.chat_ativo}**")
 mensagens_atuais = st.session_state.historico_chats[st.session_state.chat_ativo]
 
 for message in mensagens_atuais: 
-    if message["role"] == "system": 
-        continue 
+    # Pula a instrução inicial exibida
+    if message == mensagens_atuais[0] and "Instrução de Sistema" in message["content"]:
+        continue
     with st.chat_message(message["role"]): 
         st.markdown(message["content"]) 
         if "image_url" in message and message["image_url"]: 
@@ -65,25 +75,35 @@ for message in mensagens_atuais:
         if "file_info" in message and message["file_info"]:
             st.info(f"Arquivo anexado: {message['file_info']}")
 
-# Função otimizada para resposta imediata
-def gerar_resposta_ia(formatted_messages): 
+def gerar_resposta_gemini(mensagens, arquivo_enviado=None):
+    if not client:
+        return "Erro: Chave de API do Gemini não configurada nas Secrets do Streamlit."
     try:
-        # Força o uso de provedores mais rápidos do g4f se possível, ou o default otimizado
-        resposta = g4f.ChatCompletion.create( 
-            model=g4f.models.gpt_35_turbo, # Modelo leve para maior velocidade
-            messages=formatted_messages, 
-        ) 
-        return resposta 
-    except Exception:
-        try:
-            # Fallback para o modelo padrão caso o gpt_35_turbo falhe
-            resposta = g4f.ChatCompletion.create( 
-                model=g4f.models.default, 
-                messages=formatted_messages, 
-            ) 
-            return resposta 
-        except Exception as e: 
-            return f"Deu ruim na velocidade da luz: {e}" 
+        conteudo = []
+        
+        # Adiciona o contexto de personalidade
+        conteudo.append(mensagens[0]["content"])
+        
+        # Adiciona o histórico recente
+        for m in mensagens[1:]:
+            prefixo = "Usuário: " if m["role"] == "user" else "Assistente: "
+            conteudo.append(prefixo + m["content"])
+            
+        # Se houver arquivo anexado na hora, injeta no payload
+        if arquivo_enviado is not None:
+            bytes_arq = arquivo_enviado.read()
+            conteudo.append({
+                "mime_type": arquivo_enviado.type,
+                "data": bytes_arq
+            })
+
+        resposta = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=conteudo
+        )
+        return resposta.text
+    except Exception as e:
+        return f"Deu ruim: {e}"
 
 chat_input_dict = st.chat_input("Mande sua braba ou anexe um arquivo...", accept_file="multiple")
 
@@ -92,6 +112,7 @@ if chat_input_dict:
     files = chat_input_dict.files if hasattr(chat_input_dict, "files") else chat_input_dict.get("files", [])
     
     file_name_display = files[0].name if files else None
+    arquivo_objeto = files[0] if files else None
 
     st.session_state.historico_chats[st.session_state.chat_ativo].append(
         {"role": "user", "content": prompt, "file_info": file_name_display}
@@ -111,7 +132,7 @@ if chat_input_dict:
     
     with st.chat_message("assistant"): 
         message_placeholder = st.empty() 
-        message_placeholder.markdown("Processando...") 
+        message_placeholder.markdown("Respondendo na velocidade da luz...") 
         image_url = None 
         
         if is_image_request: 
@@ -121,8 +142,7 @@ if chat_input_dict:
             message_placeholder.markdown(resposta) 
             st.image(image_url) 
         else: 
-            formatted_messages = [{"role": m["role"], "content": m["content"]} for m in mensagens_atuais if "content" in m] 
-            resposta = gerar_resposta_ia(formatted_messages) 
+            resposta = gerar_resposta_gemini(mensagens_atuais, arquivo_objeto) 
             message_placeholder.markdown(resposta) 
             
         msg_dict = {"role": "assistant", "content": resposta, "file_info": file_name_display} 
