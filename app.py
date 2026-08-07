@@ -9,9 +9,15 @@ st.title("🤖 Assistente com Imagens e Arquivos")
 st.write("Digite o que quiser para conversar, peça imagens ou baixe as respostas em arquivo!")
 
 if "messages" not in st.session_state:
-    st.session_state.messages = []
+    # Adiciona instrução fixa para responder sempre em português
+    st.session_state.messages = [
+        {"role": "system", "content": "Você é um assistente prestativo. Responda sempre em português do Brasil de forma clara e direta."}
+    ]
 
+# Exibe mensagens pulando a instrução de sistema oculta
 for idx, message in enumerate(st.session_state.messages):
+    if message["role"] == "system":
+        continue
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         
