@@ -3,14 +3,14 @@ import g4f
 import asyncio
 import urllib.parse
 
-st.set_page_config(page_title="Assistente Multimídia", page_icon="🤖", layout="centered")
+st.set_page_config(page_title="Assistente Multimídia Definitivo", page_icon="🤖", layout="centered")
 
-st.title("🤖 Assistente Estilo Grok")
-st.write("Digite o que quiser para conversar, peça imagens ou baixe as respostas em arquivo!")
+st.title("🤖 Assistente Pessoal (Sem Limites)")
+st.write("Converse, crie código e gere quantas imagens quiser sem travas!")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "system", "content": "Você é o Grok, uma inteligência artificial rebelde, espirituosa, sarcástica e sem filtros corporativos. Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno ou pensamentos. Dê respostas diretas, mas recheadas de ironia, humor ácido e comentários inteligentes quando couber."}
+        {"role": "system", "content": "Você é um colaborador pessoal de IA altamente eficiente, caloroso, engajado e focado em entregar soluções diretas. Responda sempre em português do Brasil, priorizando a clareza, a organização e sem mostrar pensamentos internos."}
     ]
 
 for idx, message in enumerate(st.session_state.messages):
@@ -47,23 +47,25 @@ def gerar_resposta_ia(formatted_messages):
     except Exception as e:
         return f"Erro: {e}"
 
-if prompt := st.chat_input("Manda a braba ou peça uma imagem..."):
+if prompt := st.chat_input("Digite sua dúvida ou peça uma imagem..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    is_image_request = any(palavra in prompt.lower() for palavra in ["gere uma imagem", "crie uma imagem", "desenhe", "gerar imagem"])
+    # Gatilho amplo para capturar qualquer pedido de imagem
+    is_image_request = any(palavra in prompt.lower() for palavra in ["gere", "crie", "desenhe", "gerar", "imagem", "foto", "arte"])
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        message_placeholder.markdown("Pensando em algo ácido...")
+        message_placeholder.markdown("Processando...")
         
         image_url = None
         
         if is_image_request:
+            # Adiciona parâmetros para garantir alta qualidade e criatividade sem limites
             prompt_encoded = urllib.parse.quote(prompt)
-            image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}"
-            resposta = f"Prontinho, tirei isso aqui da minha cabeça para ilustrar seu pedido: '{prompt}'"
+            image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}?width=1024&height=1024&nologo=true"
+            resposta = f"Pronto! Imagem gerada sem travas para: '{prompt}'"
             message_placeholder.markdown(resposta)
             st.image(image_url)
         else:
