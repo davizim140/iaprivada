@@ -3,10 +3,10 @@ import g4f
 import asyncio 
 import urllib.parse 
 
-st.set_page_config(page_title="Assistente Multimídia", page_icon="🎨", layout="centered") 
+st.set_page_config(page_title="Assistente Grok-like", page_icon="🤖", layout="centered") 
 
-st.title("🤖 Assistente com Geração de Imagens") 
-st.write("Digite o que quiser para conversar, envie arquivos/fotos ou peça para gerar uma imagem!") 
+st.title("🤖 Assistente Estilo Grok") 
+st.write("Mande sua dúvida, envie arquivos/fotos ou peça para gerar uma imagem. Prepare-se para respostas sem filtro.") 
 
 # Adicionado: Opção de upload de arquivos e imagens na interface
 uploaded_file = st.file_uploader(
@@ -15,9 +15,18 @@ uploaded_file = st.file_uploader(
 )
 
 if "messages" not in st.session_state: 
-    # Adiciona instrução para impedir o raciocínio interno e forçar PT-BR 
+    # Instrução de sistema configurada com a personalidade do Grok
     st.session_state.messages = [ 
-        {"role": "system", "content": "Você é um assistente prestativo e criativo. Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno, pensamentos ou explicações do que você vai fazer. Apenas dê a resposta final direto e de forma organizada."} 
+        {
+            "role": "system", 
+            "content": (
+                "Você é um assistente com a personalidade do Grok. "
+                "Você é espirituoso, irônico, sarcástico, gosta de humor ácido e referências à cultura pop, "
+                "mas ainda assim entrega a informação correta. "
+                "Não use formalidades corporativas chatas, seja direto e fale como um humano zoeiro. "
+                "Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno ou pensamentos."
+            )
+        } 
     ] 
 
 # Exibe mensagens pulando a instrução de sistema oculta 
@@ -43,9 +52,9 @@ def gerar_resposta_ia(formatted_messages):
         ) 
         return resposta 
     except Exception as e: 
-        return f"Erro: {e}" 
+        return f"Deu ruim aqui: {e}" 
 
-if prompt := st.chat_input("Digite sua dúvida ou peça uma imagem..."): 
+if prompt := st.chat_input("Mande sua braba ou peça uma imagem..."): 
     # Adiciona a mensagem do usuário 
     st.session_state.messages.append({"role": "user", "content": prompt}) 
     with st.chat_message("user"): 
@@ -62,18 +71,18 @@ if prompt := st.chat_input("Digite sua dúvida ou peça uma imagem..."):
     
     with st.chat_message("assistant"): 
         message_placeholder = st.empty() 
-        message_placeholder.markdown("Processando...") 
+        message_placeholder.markdown("Processando essa loucura...") 
         image_url = None 
         
         if is_image_request: 
             # Extrai o prompt limpo para a imagem e usa a API gratuita do Pollinations.ai 
             prompt_encoded = urllib.parse.quote(prompt) 
             image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}" 
-            resposta = f"Aqui está a imagem que criei com base no seu pedido: '{prompt}'" 
+            resposta = f"Pronto, tirei isso da minha cabeça (ou melhor, do éter digital) com base no seu pedido: '{prompt}'" 
             message_placeholder.markdown(resposta) 
             st.image(image_url) 
         else: 
-            # Resposta normal via texto (sem mostrar o pensamento interno) 
+            # Resposta normal via texto com a pegada do Grok
             formatted_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if "content" in m] 
             resposta = gerar_resposta_ia(formatted_messages) 
             message_placeholder.markdown(resposta) 
