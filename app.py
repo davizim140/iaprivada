@@ -7,11 +7,12 @@ import io
 import zipfile
 import urllib.request
 
-st.set_page_config(page_title="Assistente Grok-like com Arquivos ZIP", page_icon="🤖", layout="centered") 
+st.set_page_config(page_title="Assistente Grok-like com Histórico Seguro", page_icon="🤖", layout="centered") 
 
 if "device_id" not in st.session_state:
     st.session_state.device_id = str(uuid.uuid4())
 
+# Blindagem para o histórico não sumir ao atualizar a página ou dar rerun
 if "historico_chats" not in st.session_state:
     st.session_state.historico_chats = {
         "Chat Principal": [
@@ -26,15 +27,20 @@ if "historico_chats" not in st.session_state:
         ]
     }
 
-if "chat_ativo" not in st.session_state:
-    st.session_state.chat_ativo = "Chat Principal"
+if "chat_ativo" not in st.session_state or st.session_state.chat_ativo not in st.session_state.historico_chats:
+    st.session_state.chat_ativo = list(st.session_state.historico_chats.keys())[0]
 
 with st.sidebar:
     st.title("📂 Histórico")
     
     if st.button("➕ Novo Chat", use_container_width=True):
         novo_nome = f"Chat {len(st.session_state.historico_chats) + 1}"
-        st.session_state.historico_chats[novo_nome] = [st.session_state.historico_chats["Chat Principal"][0]]
+        st.session_state.historico_chats[novo_nome] = [
+            {
+                "role": "system", 
+                "content": "Você é um assistente com a personalidade do Grok. Seja irônico, sarcástico e direto ao ponto."
+            }
+        ]
         st.session_state.chat_ativo = novo_nome
         st.rerun()
 
@@ -49,8 +55,7 @@ with st.sidebar:
             if len(st.session_state.historico_chats) > 1:
                 if st.button("🗑️", key=f"del_{nome_chat}"):
                     del st.session_state.historico_chats[nome_chat]
-                    if st.session_state.chat_ativo == nome_chat:
-                        st.session_state.chat_ativo = list(st.session_state.historico_chats.keys())[0]
+                    st.session_state.chat_ativo = list(st.session_state.historico_chats.keys())[0]
                     st.rerun()
 
 st.title("🤖 Assistente Estilo Grok") 
@@ -75,7 +80,7 @@ for idx, message in enumerate(mensagens_atuais):
                 data=arq["conteudo"],
                 file_name=arq["nome"],
                 mime=arq.get("mime", "application/zip"),
-                key=f"dl_history_{idx}"
+                key=f"dl_history_{idx}_{st.session_state.chat_ativo}"
             )
 
 def gerar_resposta_ia(formatted_messages): 
@@ -124,7 +129,6 @@ if chat_input_dict:
         image_url = None 
         dados_arquivo = None
         
-        # Identifica se pediu um arquivo ZIP diretamente no texto
         is_zip_request = prompt and any(k in prompt.lower() for k in [".zip", "zip", "compactado"])
         
         if is_image_request and not is_zip_request: 
@@ -134,25 +138,21 @@ if chat_input_dict:
             message_placeholder.markdown(resposta) 
             st.image(image_url) 
         elif is_zip_request:
-            # Tratamento automático via Python para criar arquivos .zip (mesmo se envolver imagens)
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
                 if "banana" in prompt.lower():
                     try:
-                        # Baixa uma foto de banana automaticamente para dentro do zip
                         img_url = "https://image.pollinations.ai/prompt/banana%20realistic"
                         req = urllib.request.urlopen(img_url, timeout=5)
                         zip_file.writestr("banana.jpg", req.read())
                     except Exception:
-                        zip_file.writestr("info.txt", "Não foi possível baixar a imagem da banana no momento.")
+                        zip_file.writestr("info.txt", "Não foi possível baixar a imagem da banana.")
                 
-                # Se houver arquivos enviados pelo usuário, inclui todos no ZIP
                 if files:
                     for f in files:
                         zip_file.writestr(f.name, f.getvalue())
                 
-                # Adiciona um txt genérico caso o zip estivesse vazio
-                zip_file.writestr("pedido.txt", f"Solicitação do usuário: {prompt}")
+                zip_file.writestr("pedido.txt", f"Solicitação: {prompt}")
 
             zip_buffer.seek(0)
             resposta = "Toma aí o seu arquivo .zip empacotado na marra."
