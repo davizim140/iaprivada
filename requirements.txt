@@ -1,3 +1,2 @@
 streamlit
-g4f
-asyncio
+google-genai
