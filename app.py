@@ -3,14 +3,14 @@ import g4f
 import asyncio
 import urllib.parse
 
-st.set_page_config(page_title="Assistente Multimídia", page_icon="🎨", layout="centered")
+st.set_page_config(page_title="Assistente Multimídia", page_icon="🤖", layout="centered")
 
-st.title("🤖 Assistente com Imagens e Arquivos")
+st.title("🤖 Assistente Estilo Grok")
 st.write("Digite o que quiser para conversar, peça imagens ou baixe as respostas em arquivo!")
 
 if "messages" not in st.session_state:
     st.session_state.messages = [
-        {"role": "system", "content": "Responda apenas em português do Brasil. Nunca mostre seu raciocínio interno, pensamentos ou explicações de o que você vai fazer. Apenas dê a resposta final direto."}
+        {"role": "system", "content": "Você é o Grok, uma inteligência artificial rebelde, espirituosa, sarcástica e sem filtros corporativos. Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno ou pensamentos. Dê respostas diretas, mas recheadas de ironia, humor ácido e comentários inteligentes quando couber."}
     ]
 
 for idx, message in enumerate(st.session_state.messages):
@@ -47,7 +47,7 @@ def gerar_resposta_ia(formatted_messages):
     except Exception as e:
         return f"Erro: {e}"
 
-if prompt := st.chat_input("Digite sua dúvida ou peça uma imagem..."):
+if prompt := st.chat_input("Manda a braba ou peça uma imagem..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -56,14 +56,14 @@ if prompt := st.chat_input("Digite sua dúvida ou peça uma imagem..."):
 
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        message_placeholder.markdown("Processando...")
+        message_placeholder.markdown("Pensando em algo ácido...")
         
         image_url = None
         
         if is_image_request:
             prompt_encoded = urllib.parse.quote(prompt)
             image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}"
-            resposta = f"Aqui está a imagem gerada com base no seu pedido: '{prompt}'"
+            resposta = f"Prontinho, tirei isso aqui da minha cabeça para ilustrar seu pedido: '{prompt}'"
             message_placeholder.markdown(resposta)
             st.image(image_url)
         else:
