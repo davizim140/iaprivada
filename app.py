@@ -51,7 +51,7 @@ with st.sidebar:
                     st.rerun()
 
 st.title("🤖 Assistente Estilo Grok") 
-st.write(f"Conversando no chat: **{st.session_state.chat_ativo}** (Modo Sem Chave)") 
+st.write(f"Conversando no chat: **{st.session_state.chat_ativo}**") 
 
 mensagens_atuais = st.session_state.historico_chats[st.session_state.chat_ativo]
 
@@ -119,6 +119,8 @@ if chat_input_dict:
         else: 
             formatted_messages = [{"role": m["role"], "content": m["content"]} for m in mensagens_atuais if "content" in m] 
             resposta = gerar_resposta_ia(formatted_messages) 
+            
+            # Exibe o texto completo de uma vez, eliminando o bug de renderização de espaçamento
             message_placeholder.markdown(resposta) 
             
         msg_dict = {"role": "assistant", "content": resposta, "file_info": file_name_display} 
