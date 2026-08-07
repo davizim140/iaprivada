@@ -5,6 +5,7 @@ import urllib.parse
 import uuid
 import io
 import zipfile
+import urllib.request
 
 st.set_page_config(page_title="Assistente Grok-like com Arquivos ZIP", page_icon="🤖", layout="centered") 
 
@@ -67,14 +68,13 @@ for idx, message in enumerate(mensagens_atuais):
         if "file_info" in message and message["file_info"]:
             st.info(f"Arquivo anexado: {message['file_info']}")
         
-        # Exibe botão de download de arquivo individual ou ZIP salvo no histórico
         if "gerar_arquivo" in message and message["gerar_arquivo"]:
             arq = message["gerar_arquivo"]
             st.download_button(
                 label=f"📥 Baixar arquivo: {arq['nome']}",
                 data=arq["conteudo"],
                 file_name=arq["nome"],
-                mime=arq.get("mime", "text/plain"),
+                mime=arq.get("mime", "application/zip"),
                 key=f"dl_history_{idx}"
             )
 
@@ -124,63 +124,56 @@ if chat_input_dict:
         image_url = None 
         dados_arquivo = None
         
-        if is_image_request: 
+        # Identifica se pediu um arquivo ZIP diretamente no texto
+        is_zip_request = prompt and any(k in prompt.lower() for k in [".zip", "zip", "compactado"])
+        
+        if is_image_request and not is_zip_request: 
             prompt_encoded = urllib.parse.quote(prompt) 
             image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}" 
             resposta = f"Toma aí a sua obra-prima gerada na base do caos: '{prompt}'" 
             message_placeholder.markdown(resposta) 
             st.image(image_url) 
+        elif is_zip_request:
+            # Tratamento automático via Python para criar arquivos .zip (mesmo se envolver imagens)
+            zip_buffer = io.BytesIO()
+            with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                if "banana" in prompt.lower():
+                    try:
+                        # Baixa uma foto de banana automaticamente para dentro do zip
+                        img_url = "https://image.pollinations.ai/prompt/banana%20realistic"
+                        req = urllib.request.urlopen(img_url, timeout=5)
+                        zip_file.writestr("banana.jpg", req.read())
+                    except Exception:
+                        zip_file.writestr("info.txt", "Não foi possível baixar a imagem da banana no momento.")
+                
+                # Se houver arquivos enviados pelo usuário, inclui todos no ZIP
+                if files:
+                    for f in files:
+                        zip_file.writestr(f.name, f.getvalue())
+                
+                # Adiciona um txt genérico caso o zip estivesse vazio
+                zip_file.writestr("pedido.txt", f"Solicitação do usuário: {prompt}")
+
+            zip_buffer.seek(0)
+            resposta = "Toma aí o seu arquivo .zip empacotado na marra."
+            message_placeholder.markdown(resposta)
+            
+            dados_arquivo = {
+                "nome": "arquivo_solicitado.zip",
+                "conteudo": zip_buffer.getvalue(),
+                "mime": "application/zip"
+            }
+            st.download_button(
+                label="📥 Baixar arquivo .ZIP compactado",
+                data=zip_buffer.getvalue(),
+                file_name="arquivo_solicitado.zip",
+                mime="application/zip",
+                key="dl_current_zip"
+            )
         else: 
             formatted_messages = [{"role": m["role"], "content": m["content"]} for m in mensagens_atuais if "content" in m] 
             resposta = gerar_resposta_ia(formatted_messages) 
             message_placeholder.markdown(resposta) 
-            
-            if prompt and any(cmd in prompt.lower() for cmd in ["crie um arquivo", "salve", "faça um arquivo", "gere um arquivo", ".zip", "compactado"]):
-                # Verifica se o usuário pediu especificamente um arquivo .zip
-                if ".zip" in prompt.lower() or "compactado" in prompt.lower():
-                    zip_buffer = io.BytesIO()
-                    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-                        # Adiciona o texto gerado dentro de um arquivo padrão dentro do ZIP
-                        zip_file.writestr("conteudo_gerado.txt", resposta)
-                        # Se houver arquivo enviado pelo usuário, compacta ele junto no ZIP
-                        if files:
-                            for f in files:
-                                zip_file.writestr(f.name, f.getvalue())
-                    
-                    zip_buffer.seek(0)
-                    dados_arquivo = {
-                        "nome": "projeto_assistente.zip",
-                        "conteudo": zip_buffer.getvalue(),
-                        "mime": "application/zip"
-                    }
-                    st.download_button(
-                        label="📥 Baixar arquivo .ZIP compactado",
-                        data=zip_buffer.getvalue(),
-                        file_name="projeto_assistente.zip",
-                        mime="application/zip",
-                        key="dl_current_zip"
-                    )
-                else:
-                    # Arquivo de texto comum (.txt, .py, etc)
-                    nome_arquivo = "resposta_assistente.txt"
-                    if "." in prompt:
-                        for p in prompt.split():
-                            if "." in p and len(p) > 3:
-                                nome_arquivo = p.strip(".,'\"?!")
-                                break
-                    
-                    dados_arquivo = {
-                        "nome": nome_arquivo,
-                        "conteudo": resposta.encode("utf-8"),
-                        "mime": "text/plain"
-                    }
-                    st.download_button(
-                        label=f"📥 Baixar arquivo: {nome_arquivo}",
-                        data=resposta,
-                        file_name=nome_arquivo,
-                        mime="text/plain",
-                        key="dl_current_txt"
-                    )
             
         msg_dict = {"role": "assistant", "content": resposta, "file_info": file_name_display} 
         if image_url: 
