@@ -1,79 +1,80 @@
 import streamlit as st
-import g4f
-import asyncio
-import urllib.parse
+from google import genai
 
-st.set_page_config(page_title="Assistente Multimídia", page_icon="🎨", layout="centered")
+st.set_page_config(page_title="IA Privada Multimodal", page_icon="🤖", layout="centered")
 
-st.title("🤖 Assistente com Geração de Imagens")
-st.write("Digite o que quiser para conversar ou peça para gerar uma imagem!")
+st.title("🤖 Minha IA Privada")
+st.write("Converse com sua IA localmente e envie imagens ou arquivos para análise.")
 
-if "messages" not in st.session_state:
-    # Adiciona instrução para impedir o raciocínio interno e forçar PT-BR
-    st.session_state.messages = [
-        {"role": "system", "content": "Você é um assistente prestativo e criativo. Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno, pensamentos ou explicações do que você vai fazer. Apenas dê a resposta final direto e de forma organizada."}
-    ]
+# Inicialização do cliente Gemini (certifique-se de configurar sua chave de API nas variáveis de ambiente)
+@st.cache_resource
+def carregar_cliente():
+    return genai.Client()
 
-# Exibe mensagens pulando a instrução de sistema oculta
-for message in st.session_state.messages:
-    if message["role"] == "system":
-        continue
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        # Se houver imagem salva na mensagem, exibe ela
-        if "image_url" in message and message["image_url"]:
-            st.image(message["image_url"])
+try:
+    client = carregar_cliente()
+except Exception as e:
+    st.error(f"Erro ao inicializar o cliente da IA: {e}")
 
-def gerar_resposta_ia(formatted_messages):
-    try:
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-        resposta = g4f.ChatCompletion.create(
-            model=g4f.models.default,
-            messages=formatted_messages,
-        )
-        return resposta
-    except Exception as e:
-        return f"Erro: {e}"
+# Campo de upload de arquivos e imagens na interface
+uploaded_file = st.file_uploader(
+    "Envie uma imagem ou arquivo para a IA analisar:", 
+    type=["png", "jpg", "jpeg", "pdf", "txt", "csv"]
+)
 
-if prompt := st.chat_input("Digite sua dúvida ou peça uma imagem..."):
-    # Adiciona a mensagem do usuário
-    st.session_state.messages.append({"role": "user", "content": prompt})
+# Histórico de mensagens no chat
+if "mensagens" not in st.session_state:
+    st.session_state.mensagens = []
+
+# Exibir mensagens anteriores
+for mensagem in st.session_state.mensagens:
+    with st.chat_message(mensagem["role"]):
+        st.markdown(mensagem["content"])
+
+# Entrada do usuário
+prompt_usuario = st.chat_input("Digite sua mensagem para a IA...")
+
+if prompt_usuario:
+    # Exibe a mensagem do usuário na tela
+    st.session_state.mensagens.append({"role": "user", "content": prompt_usuario})
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(prompt_usuario)
 
-    # Verifica se o usuário pediu uma imagem
-    is_image_request = any(palavra in prompt.lower() for palavra in ["gere uma imagem", "crie uma imagem", "desenhe", "gerar imagem"])
-
+    # Processamento da resposta com a IA
     with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        message_placeholder.markdown("Processando...")
-        
-        image_url = None
-        
-        if is_image_request:
-            # Extrai o prompt limpo para a imagem e usa a API gratuita do Pollinations.ai
-            # Isso permite que o site gere imagens visualmente.
-            prompt_encoded = urllib.parse.quote(prompt)
-            image_url = f"https://image.pollinations.ai/prompt/{prompt_encoded}"
-            resposta = f"Aqui está a imagem que criei com base no seu pedido: '{prompt}'"
-            message_placeholder.markdown(resposta)
-            st.image(image_url)
-        else:
-            # Resposta normal via texto (sem mostrar o pensamento interno)
-            formatted_messages = [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages if "content" in m]
-            resposta = gerar_resposta_ia(formatted_messages)
-            message_placeholder.markdown(resposta)
-        
-        # Salva no histórico da sessão
-        msg_dict = {"role": "assistant", "content": resposta}
-        if image_url:
-            msg_dict["image_url"] = image_url
-            
-        st.session_state.messages.append(msg_dict)
-        # Recarrega para garantir que o histórico seja exibido corretamente
-        st.rerun()
+        with st.spinner("A IA está pensando..."):
+            try:
+                conteudo_envio = [prompt_usuario]
+                
+                # Se o usuário enviou um arquivo ou imagem, tratamos para enviar junto
+                if uploaded_file is not None:
+                    bytes_arquivo = uploaded_file.read()
+                    
+                    # Verificação simples do tipo de arquivo para o Gemini
+                    if uploaded_file.type in ["image/png", "image/jpeg", "image/jpg"]:
+                        parte_arquivo = {
+                            "mime_type": uploaded_file.type,
+                            "data": bytes_arquivo
+                        }
+                        conteudo_envio.append(parte_arquivo)
+                    else:
+                        # Para arquivos de texto, PDF, etc., podemos usar o File API do Gemini ou extrair texto
+                        # Exemplo genérico enviando os bytes do arquivo suportado
+                        parte_arquivo = {
+                            "mime_type": uploaded_file.type,
+                            "data": bytes_arquivo
+                        }
+                        conteudo_envio.append(parte_arquivo)
+
+                # Chamada ao modelo Gemini (utilizando o modelo padrão recomendado)
+                resposta = client.models.generate_content(
+                    model='gemini-2.5-flash',
+                    contents=conteudo_envio
+                )
+                
+                texto_resposta = resposta.text
+                st.markdown(texto_resposta)
+                st.session_state.mensagens.append({"role": "assistant", "content": texto_resposta})
+                
+            except Exception as e:
+                st.error(f"Ocorreu um erro ao processar a solicitação: {e}")
