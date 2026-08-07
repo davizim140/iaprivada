@@ -4,13 +4,11 @@ import asyncio
 import urllib.parse 
 import uuid
 
-st.set_page_config(page_title="Assistente Grok-like", page_icon="🤖", layout="centered") 
+st.set_page_config(page_title="Assistente Grok-like Rápido", page_icon="🤖", layout="centered") 
 
-# Gerencia ou recupera um ID único de dispositivo via session_state (vinculado à aba/sessão do navegador)
 if "device_id" not in st.session_state:
     st.session_state.device_id = str(uuid.uuid4())
 
-# Estrutura de múltiplos históricos por dispositivo salvos na sessão
 if "historico_chats" not in st.session_state:
     st.session_state.historico_chats = {
         "Chat Principal": [
@@ -18,9 +16,8 @@ if "historico_chats" not in st.session_state:
                 "role": "system", 
                 "content": (
                     "Você é um assistente com a personalidade do Grok. "
-                    "Você é espirituoso, irônico, sarcástico, vai direto ao ponto sem enrolação corporativa, "
-                    "adora cultura pop e memes, e responde rápido. "
-                    "Responda sempre em português do Brasil. Nunca mostre seu raciocínio interno."
+                    "Seja irônico, sarcástico, direto ao ponto e sem enrolação. "
+                    "Responda sempre em português do Brasil e muito rápido."
                 )
             }
         ]
@@ -29,10 +26,8 @@ if "historico_chats" not in st.session_state:
 if "chat_ativo" not in st.session_state:
     st.session_state.chat_ativo = "Chat Principal"
 
-# Barra lateral para gerenciar o histórico de conversas do dispositivo
 with st.sidebar:
-    st.title("📂 Histórico do Dispositivo")
-    st.caption(id_cur := f"ID: {st.session_state.device_id[:8]}...")
+    st.title("📂 Histórico")
     
     if st.button("➕ Novo Chat", use_container_width=True):
         novo_nome = f"Chat {len(st.session_state.historico_chats) + 1}"
@@ -41,8 +36,6 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.write("### Suas Conversas:")
-    
     for nome_chat in list(st.session_state.historico_chats.keys()):
         col1, col2 = st.columns([0.8, 0.2])
         with col1:
@@ -60,10 +53,8 @@ with st.sidebar:
 st.title("🤖 Assistente Estilo Grok") 
 st.write(f"Conversando no chat: **{st.session_state.chat_ativo}**") 
 
-# Pega as mensagens do chat selecionado atualmente
 mensagens_atuais = st.session_state.historico_chats[st.session_state.chat_ativo]
 
-# Exibe o histórico de mensagens do chat ativo
 for message in mensagens_atuais: 
     if message["role"] == "system": 
         continue 
@@ -74,34 +65,34 @@ for message in mensagens_atuais:
         if "file_info" in message and message["file_info"]:
             st.info(f"Arquivo anexado: {message['file_info']}")
 
+# Função otimizada para resposta imediata
 def gerar_resposta_ia(formatted_messages): 
-    try: 
-        try: 
-            loop = asyncio.get_event_loop() 
-        except RuntimeError: 
-            loop = asyncio.new_event_loop() 
-        asyncio.set_event_loop(loop) 
-        
+    try:
+        # Força o uso de provedores mais rápidos do g4f se possível, ou o default otimizado
         resposta = g4f.ChatCompletion.create( 
-            model=g4f.models.default, 
+            model=g4f.models.gpt_35_turbo, # Modelo leve para maior velocidade
             messages=formatted_messages, 
         ) 
         return resposta 
-    except Exception as e: 
-        return f"Deu ruim na velocidade da luz: {e}" 
+    except Exception:
+        try:
+            # Fallback para o modelo padrão caso o gpt_35_turbo falhe
+            resposta = g4f.ChatCompletion.create( 
+                model=g4f.models.default, 
+                messages=formatted_messages, 
+            ) 
+            return resposta 
+        except Exception as e: 
+            return f"Deu ruim na velocidade da luz: {e}" 
 
-# Barra de chat com suporte nativo a anexos (botão e Ctrl+V de arquivos/imagens)
 chat_input_dict = st.chat_input("Mande sua braba ou anexe um arquivo...", accept_file="multiple")
 
 if chat_input_dict:
     prompt = chat_input_dict.text if hasattr(chat_input_dict, "text") else chat_input_dict.get("text", "")
     files = chat_input_dict.files if hasattr(chat_input_dict, "files") else chat_input_dict.get("files", [])
     
-    file_name_display = None
-    if files:
-        file_name_display = files[0].name
+    file_name_display = files[0].name if files else None
 
-    # Adiciona a mensagem do usuário no histórico do chat ativo
     st.session_state.historico_chats[st.session_state.chat_ativo].append(
         {"role": "user", "content": prompt, "file_info": file_name_display}
     ) 
@@ -120,7 +111,7 @@ if chat_input_dict:
     
     with st.chat_message("assistant"): 
         message_placeholder = st.empty() 
-        message_placeholder.markdown("Processando à milhão...") 
+        message_placeholder.markdown("Processando...") 
         image_url = None 
         
         if is_image_request: 
